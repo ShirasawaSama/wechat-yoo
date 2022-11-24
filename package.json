@@ -1,0 +1,46 @@
+{
+  "name": "wechat-yoo",
+  "version": "0.1.0",
+  "description": "一个基于TypeScript的微信公众平台开发框架.",
+  "main": "dist/index.js",
+  "type": "module",
+  "dependencies": {
+    "eventemitter2": "^6.4.9",
+    "fast-xml-parser": "^4.0.12"
+  },
+  "devDependencies": {
+    "@types/koa": "^2.13.5",
+    "@types/lodash": "^4.14.190",
+    "@types/node": "^18.11.9",
+    "@typescript-eslint/eslint-plugin": "^5.44.0",
+    "@typescript-eslint/parser": "^5.44.0",
+    "eslint": "^8.28.0",
+    "eslint-config-standard": "^17.0.0",
+    "eslint-plugin-import": "^2.26.0",
+    "eslint-plugin-n": "^15.5.1",
+    "eslint-plugin-promise": "^6.1.1",
+    "koa": "^2.13.4",
+    "koa-bodyparser": "^4.3.0",
+    "typescript": "^4.9.3"
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShirasawaSama/wechat-yoo.git"
+  },
+  "keywords": [
+    "typescript",
+    "wechat",
+    "WeixinOfficialAccounts",
+    "微信",
+    "微信公众平台"
+  ],
+  "author": "Shirasawa",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ShirasawaSama/wechat-yoo/issues"
+  },
+  "homepage": "https://github.com/ShirasawaSama/wechat-yoo#readme"
+}
