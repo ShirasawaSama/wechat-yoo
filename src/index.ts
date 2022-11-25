@@ -4,6 +4,7 @@ import {
   buildMessage, buildEncryptedMessage, MessageData, VideoMessage, MusicMessage,
   ReceivedEventMessage, ReceivedTextMessage, ReceivedImageMessage, ReceivedVideoMessage, ReceivedShortVideoMessage, ReceivedVoiceMessage, ReceivedLinkMessage, ReceivedLocationVideoMessage,
 } from './messages.js'
+import fs from 'fs/promises'
 import WechatCrypto from './WechatCrypto.js'
 import eventemitter2, { ConstructorOptions, OnOptions } from 'eventemitter2'
 
@@ -98,6 +99,9 @@ export interface Options {
   token: string
   key?: string
   id?: string
+  secret?: string
+  autoFetchAccessToken?: boolean
+  accessTokenCacheFile?: string
 }
 
 export type ExtendFunction <M, T> = (listener: (sender: Sender, message: M, type: T) => void) => Yoo
@@ -118,6 +122,7 @@ export type ExtendFunctions = {
 class Yoo <S = any> extends EventEmitter2 {
   private readonly options: Options
   private readonly crypto: WechatCrypto | null
+  public accessToken: string = ''
 
   public constructor (options: string | (Options & ConstructorOptions)) {
     const optionsObj = typeof options === 'string' ? { token: options } : options as Options
@@ -126,6 +131,8 @@ class Yoo <S = any> extends EventEmitter2 {
     this.crypto = optionsObj.key && optionsObj.id ? new WechatCrypto(optionsObj.token, optionsObj.key, optionsObj.id) : null
 
     Object.values(typeNameMap).forEach(it => ((this as any)[it] = (listener: (sender: Sender, message: any, type: any) => void) => this.on(it, listener)))
+
+    if (optionsObj.autoFetchAccessToken && this.options.id && this.options.secret) this.fetchAccessToken()
   }
 
   private emitWithTimeout (event: string, sender: Sender, data: any, type: string) {
@@ -159,35 +166,26 @@ class Yoo <S = any> extends EventEmitter2 {
           data = xmlParser.parse(this.crypto.decrypt(encrypt).message)
         }
         if (data.xml) data = data.xml
-        if (!data || !data.MsgType || !data.FromUserName || !data.FromUserName) {
-          return { status: 400, body: 'Bad Request' }
-        }
+
+        if (!data || !data.MsgType || !data.FromUserName || !data.FromUserName) return { status: 400, body: 'Bad Request' }
+
         let type = data.MsgType
         const sender = new Sender()
         try {
           if (type === 'event' && data.Event) type = data.Event
           type = type.toLowerCase().replace(/_/g, '')
           if (typeNameMap[type]) type = typeNameMap[type]
-          if (this.listenerCount('before') > 0) {
-            await this.emitWithTimeout('before', sender, data, type)
-          }
-          if (this.listenerCount(type) > 0) {
-            await this.emitWithTimeout(type, sender, data, type)
-          } else if (this.listenerCount('default') > 0) {
-            await this.emitWithTimeout('default', sender, data, type)
-          } else return { status: 404, body: 'Not Found' }
+          if (this.listenerCount('before') > 0) await this.emitWithTimeout('before', sender, data, type)
+          if (this.listenerCount(type) > 0) await this.emitWithTimeout(type, sender, data, type)
+          if (!sender.replyData && this.listenerCount('default') > 0) await this.emitWithTimeout('default', sender, data, type)
         } catch (e) {
-          if (this.listenerCount('error') > 0) {
-            await this.emitAsync('error', sender, data, e)
-          } else throw e
-          if (!sender.replyData) {
-            return { status: 500, body: 'Internal Server Error' }
-          }
+          if (this.listenerCount('error') > 0) await this.emitAsync('error', sender, data, e)
+          else throw e
+          if (!sender.replyData) return { status: 500, body: 'Internal Server Error' }
         } finally {
-          if (this.listenerCount('after') > 0) {
-            await this.emitWithTimeout('after', sender, data, type)
-          }
+          if (this.listenerCount('after') > 0) await this.emitWithTimeout('after', sender, data, type)
         }
+        
         if (sender.replyData) {
           const body = buildMessage(data.FromUserName, data.ToUserName, data.CreateTime, sender.replyData)
           return {
@@ -205,6 +203,32 @@ class Yoo <S = any> extends EventEmitter2 {
     }
   }
 
+  async fetchAccessToken (readFromCache = true) {
+    if (readFromCache) {
+      try {
+        const cache = JSON.parse(await fs.readFile(this.options.accessTokenCacheFile || '.yoo-access-token.json', 'utf-8'))
+        if (cache && cache.accessToken && cache.expiresAt && cache.expiresAt > Date.now() + 1000 * 60) {
+          this.emit('fetchAccessToken', cache.accessToken, cache.expiresAt)
+          this.accessToken = cache.accessToken
+          setTimeout(() => this.fetchAccessToken(false), Math.max(cache.expiresAt - Date.now() - 1000 * 60, 0))
+          return
+        }
+      } catch { }
+    }
+    const res = await fetch(`https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${this.options.id}&secret=${this.options.secret}`).then(it => it.json())
+    if (!res.access_token) return
+    this.emit('fetchAccessToken', res.access_token, res.expiresAt)
+    this.accessToken = res.access_token
+    try {
+      await fs.writeFile(this.options.accessTokenCacheFile || '.yoo-access-token.json', JSON.stringify({
+        accessToken: res.access_token,
+        expiresAt: Date.now() + res.expires_in * 1000
+      }))
+    } catch { }
+    setTimeout(() => this.fetchAccessToken(false), (res.expires_in - 60) * 1000)
+  }
+
+  on (event: 'fetchAccessToken', listener: (accessToken: string, expiresIn: number) => void, options?: boolean | OnOptions): this
   // @ts-ignore
   on <E extends keyof ExtendFunctions> (event: E | string | symbol | (E | string | symbol)[], listener: Parameters<ExtendFunctions[E]>[0], options?: boolean | OnOptions): this
   // @ts-ignore

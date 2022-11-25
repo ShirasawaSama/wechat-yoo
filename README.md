@@ -1,5 +1,7 @@
 # wechat-yoo [![JavaScript Style Guide](https://img.shields.io/badge/code%20style-standard-brightgreen.svg)](http://standardjs.com/)
 
+一个基于TypeScript的微信公众平台开发框架.
+
 ## Installation
 
 ```
@@ -7,6 +9,14 @@ npm install wechat-yoo
 ```
 
 ## Usage
+
+### Koa
+
+```
+npm install koa koa-bodyparser
+```
+
+index.ts:
 
 ```ts
 import Yoo from 'wechat-yoo'
@@ -30,10 +40,13 @@ console.log('Started!')
 ## Options
 
 ```ts
-wechatYoo({
+new Yoo({
   token: 'Token',
-  key: 'EncodinAESKey',
-  appid: 'Appid'
+  key: 'EncodingAESKey',
+  appid: 'AppId',
+  secret: 'AppSecret',
+  autoFetchAccessToken: false,
+  accessTokenCacheFile: '.yoo-access-token.json'
 })
 ```
 
